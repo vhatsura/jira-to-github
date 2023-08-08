@@ -31,6 +31,8 @@ public static class JiraToMarkdownConverter
                     stringBuilder.AppendLine();
 
                     break;
+                case { Type: "orderedList" }:
+                    throw new NotImplementedException();
                 case { Type: "bulletList", Content: not null }:
                     BuildMarkdown(stringBuilder, content.Content);
                     stringBuilder.AppendLine();
@@ -66,6 +68,12 @@ public static class JiraToMarkdownConverter
 
                     break;
                 case { Type: "mediaSingle" }:
+                    throw new NotImplementedException();
+                case { Type: "codeBlock" }:
+                    throw new NotImplementedException();
+                case { Type: "emoji" }:
+                    throw new NotImplementedException();
+                case { Type: "table" }:
                     throw new NotImplementedException();
                 default:
                     Debugger.Break();
