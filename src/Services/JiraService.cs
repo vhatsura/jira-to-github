@@ -1,7 +1,5 @@
 using System.Diagnostics;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using JiraToGitHubMigration.Models.Jira;
@@ -87,6 +85,7 @@ public class JiraService
             yield return response.Issues;
 
             isLastPage = response.StartAt + response.MaxResults >= response.Total;
+            startAt += maxResults;
         } while (!isLastPage);
     }
 }

@@ -64,6 +64,36 @@ public class ConvertJiraDescriptionToGitHubBodyTests
     }
 
     [Fact]
+    public void Heading()
+    {
+        // Arrange
+        var description = new JiraDescription
+        {
+            Version = 1,
+            Type = "doc",
+            Content = new[]
+            {
+                new JiraDescriptionContent
+                {
+                    Type = "heading",
+                    Attributes = new JiraDescriptionAttributes { Level = 3 },
+                    Content = new[]
+                    {
+                        new JiraDescriptionContent { Type = "text", Text = "The task description" }
+                    }
+                }
+            }
+        };
+
+        // Act
+        var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
+            CreateJiraTask(description), "https://example.atlassian.net");
+
+        // Assert
+        content.MatchSnapshot();
+    }
+
+    [Fact]
     public void BulletList()
     {
         // Arrange

@@ -19,7 +19,13 @@ public class JiraFields
     [JsonPropertyName("customfield_10000")]
     public string? SourceProviderData { get; set; }
 
+    [JsonPropertyName("customfield_10020")]
+    public JiraSprintDetails[]? Sprint { get; set; }
+
     public JiraIssueLink[]? IssueLinks { get; set; }
 
     public JiraTask[]? Subtasks { get; set; }
+
+    [JsonPropertyName("customfield_10026")]
+    public float? Estimations { get; set; }
 }

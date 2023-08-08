@@ -57,6 +57,16 @@ public static class JiraToMarkdownConverter
                     stringBuilder.AppendLine("---");
 
                     break;
+                case { Type: "heading", Attributes.Level: not null, Content: not null }:
+                    stringBuilder.Append('#', content.Attributes.Level.Value);
+                    stringBuilder.Append(' ');
+
+                    BuildMarkdown(stringBuilder, content.Content);
+                    stringBuilder.AppendLine();
+
+                    break;
+                case { Type: "mediaSingle" }:
+                    throw new NotImplementedException();
                 default:
                     Debugger.Break();
 

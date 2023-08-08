@@ -12,6 +12,8 @@ public class JiraDescriptionAttributes
 
     [JsonPropertyName("url")]
     public string? Url { get; set; }
+
+    public int? Level { get; set; }
 }
 
 public class JiraDescriptionMark
