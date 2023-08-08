@@ -90,7 +90,13 @@ mutation ($input: AddAssigneesToAssignableInput!) {
                 query = UpdateProjectV2ItemFieldValueMutation,
                 variables = new
                 {
-                    input = new { fieldId = Constants.GitHubEpicFieldId, itemId, projectId, value = new { text = value } }
+                    input = new
+                    {
+                        fieldId = Constants.GitHubEpicFieldId,
+                        itemId,
+                        projectId,
+                        value = new { text = value }
+                    }
                 }
             });
 
@@ -138,7 +144,8 @@ mutation ($input: AddProjectV2ItemByIdInput!) {
 
         var data = await response.ParseGraphQlResponse<AddProjectV2ItemByIdResponse>();
 
-        return data.AddProjectV2ItemById.Item;
+        return new IssueProjectItem(
+            data.AddProjectV2ItemById.Item.Id, data.AddProjectV2ItemById.Item.DatabaseId, issueId);
     }
 
     public async Task CloseIssue(string issueId)
@@ -158,7 +165,7 @@ mutation ($input: CloseIssueInput!) {
         _ = await response.ParseGraphQlResponse<CloseIssueResponse>();
     }
 
-    public async Task<DraftIssueProjectItem> AddDraftIssue(
+    public async Task<ProjectItem> AddDraftIssue(
         string projectId, string title, string body, string[]? assigneeIds)
     {
         object variables = assigneeIds != null
