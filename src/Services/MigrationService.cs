@@ -60,45 +60,60 @@ public class MigrationService
         return null;
     }
 
+    private bool HasMergedReferencedPullRequests(JiraTask task)
+    {
+        if (task.Fields.SourceProviderData != null && task.Fields.SourceProviderData != "{}")
+        {
+            if (task.Fields.SourceProviderData.Contains("dataType=pullrequest, state=MERGED"))
+            {
+                return true;
+            }
+
+            if (task.Fields.SourceProviderData.Contains("dataType=pullrequest, state=DECLINED"))
+            {
+                return false;
+            }
+
+            Debugger.Break();
+
+            throw new NotImplementedException();
+        }
+
+        return false;
+    }
+
     private async Task<IssueProjectItem> CreateIssueAndAddToProject(
         JiraTask task, string title, string body, string[]? assigneeIds)
     {
-        if (task.Fields.SourceProviderData!.Contains("dataType=pullrequest, state=MERGED"))
+        var pullRequestLinks = await _jiraService.PullRequestLinks(task.Id, "GitHub");
+
+        HashSet<(string Owner, string Repository, string PRNumber)> set = new();
+
+        foreach (var pullRequest in pullRequestLinks.Where(p => p.Status == "MERGED"))
         {
-            var pullRequestLinks = await _jiraService.PullRequestLinks(task.Id, "GitHub");
+            var pattern = @"https://github\.com/(?<owner>.+?)/(?<repository>.+?)/pull/(?<prNumber>\d+)";
 
-            HashSet<(string Owner, string Repository, string PRNumber)> set = new();
+            var regex = new Regex(pattern);
+            Match match = regex.Match(pullRequest.Url);
 
-            foreach (var pullRequest in pullRequestLinks.Where(p => p.Status == "MERGED"))
-            {
-                var pattern = @"https://github\.com/(?<owner>.+?)/(?<repository>.+?)/pull/(?<prNumber>\d+)";
-
-                var regex = new Regex(pattern);
-                Match match = regex.Match(pullRequest.Url);
-
-                set.Add(
-                    (match.Groups["owner"].Value, match.Groups["repository"].Value,
-                        match.Groups["prNumber"].Value));
-            }
-
-            if (set.Count != 1)
-            {
-                Debugger.Break();
-
-                throw new NotImplementedException();
-            }
-
-            var repositoryId = await _githubService.RepositoryId(set.First().Repository, set.First().Owner);
-
-            var createdIssue = await _githubService.CreateIssue(body, repositoryId, title, assigneeIds);
-
-            return await _githubService.AddIssueToProject(Constants.GitHubProjectId, createdIssue.Id);
-            // link to PR - not available in API
+            set.Add(
+                (match.Groups["owner"].Value, match.Groups["repository"].Value,
+                    match.Groups["prNumber"].Value));
         }
 
-        Debugger.Break();
+        if (set.Count != 1)
+        {
+            Debugger.Break();
 
-        throw new NotImplementedException();
+            throw new NotImplementedException();
+        }
+
+        var repositoryId = await _githubService.RepositoryId(set.First().Repository, set.First().Owner);
+
+        var createdIssue = await _githubService.CreateIssue(body, repositoryId, title, assigneeIds);
+
+        return await _githubService.AddIssueToProject(Constants.GitHubProjectId, createdIssue.Id);
+        // link to PR - not available in API
     }
 
     private async Task<string?> CreateGitHubIssue(JiraTask task)
@@ -156,15 +171,15 @@ public class MigrationService
         var body = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(task, _jiraService.JiraBaseAddress);
         var assigneeIds = AssigneeIds(task);
 
-        ProjectItem projectItem = task.Fields.SourceProviderData != null && task.Fields.SourceProviderData != "{}"
+        ProjectItem projectItem = HasMergedReferencedPullRequests(task)
             ? await CreateIssueAndAddToProject(task, title, body, assigneeIds)
             : await _githubService.AddDraftIssue(Constants.GitHubProjectId, title, body, assigneeIds);
 
         await _githubService.SetIssueStatus(Constants.GitHubProjectId, projectItem.Id, statusFieldValueId);
 
-        if (task.Fields.Status.Name == "Done" && projectItem is IssueProjectItem)
+        if (task.Fields.Status.Name == "Done" && projectItem is IssueProjectItem issueProjectItem)
         {
-            await _githubService.CloseIssue(projectItem.Id);
+            await _githubService.CloseIssue(issueProjectItem.IssueId);
         }
 
         if (task.Fields.Parent != null)
