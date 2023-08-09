@@ -14,6 +14,18 @@ public class JiraDescriptionAttributes
     public string? Url { get; set; }
 
     public int? Level { get; set; }
+
+    public string? Language { get; set; }
+
+    public string? Id { get; set; }
+
+    public string? Text { get; set; }
+
+    public string? UserType { get; set; }
+
+    public string? AccessLevel { get; set; }
+
+    public string? ShortName { get; set; }
 }
 
 public class JiraDescriptionMark

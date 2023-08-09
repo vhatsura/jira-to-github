@@ -54,7 +54,8 @@ public class MigrationService
                 throw new InvalidOperationException();
             }
 
-            return new[] { assigneeId };
+
+            return assigneeId != null ? new[] { assigneeId } : null;
         }
 
         return null;
@@ -62,24 +63,37 @@ public class MigrationService
 
     private bool HasMergedReferencedPullRequests(JiraTask task)
     {
-        if (task.Fields.SourceProviderData != null && task.Fields.SourceProviderData != "{}")
+        if (task.Fields.SourceProviderData == null || task.Fields.SourceProviderData == "{}")
+            return false;
+
+        if (task.Fields.SourceProviderData.StartsWith("{build="))
         {
-            if (task.Fields.SourceProviderData.Contains("dataType=pullrequest, state=MERGED"))
-            {
-                return true;
-            }
-
-            if (task.Fields.SourceProviderData.Contains("dataType=pullrequest, state=DECLINED"))
-            {
-                return false;
-            }
-
-            Debugger.Break();
-
-            throw new NotImplementedException();
+            return false;
         }
 
-        return false;
+        if (task.Fields.SourceProviderData.StartsWith("{branch="))
+        {
+            return false;
+        }
+
+        if (task.Fields.SourceProviderData.Contains("dataType=pullrequest, state=MERGED"))
+        {
+            return true;
+        }
+
+        if (task.Fields.SourceProviderData.Contains("dataType=pullrequest, state=OPEN"))
+        {
+            return true;
+        }
+
+        if (task.Fields.SourceProviderData.Contains("dataType=pullrequest, state=DECLINED"))
+        {
+            return false;
+        }
+
+        Debugger.Break();
+
+        throw new NotImplementedException();
     }
 
     private async Task<IssueProjectItem> CreateIssueAndAddToProject(
@@ -103,7 +117,7 @@ public class MigrationService
 
         if (set.Count != 1)
         {
-            Debugger.Break();
+            _logger.LogError($"There are a few pull requests for '{task.Key}' task");
 
             throw new NotImplementedException();
         }
@@ -116,46 +130,66 @@ public class MigrationService
         // link to PR - not available in API
     }
 
+    private string? ExtractIterationId(JiraTask task)
+    {
+        if (task.Fields.Sprint is not null)
+        {
+            if (task.Fields.Sprint.Length != 1)
+            {
+                _logger.LogError($"Multiple Sprints are not supported for now. Task '{task.Key}'");
+
+                // Debugger.Break();
+
+                throw new NotImplementedException();
+            }
+
+            if (!Constants.JiraSprintToGitHubIterationMap.TryGetValue(task.Fields.Sprint[0].Name, out var iterationId))
+            {
+                Debugger.Break();
+
+                throw new InvalidOperationException();
+            }
+
+            return iterationId;
+        }
+
+        return null;
+    }
+
+    private string Body(JiraTask task)
+    {
+        var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(task);
+
+        return content + "\n\n" +
+               $"> Originally reported issue in Jira [{task.Key}]({_jiraService.JiraBaseAddress}/browse/{task.Key})";
+    }
+
     private async Task<string?> CreateGitHubIssue(JiraTask task)
     {
         if (task.Fields.IssueType.Name != "Task" && task.Fields.IssueType.Name != "Bug")
         {
-            _logger.LogError($"'{task.Fields.IssueType.Name}' issues are not supported");
+            _logger.LogError($"'{task.Fields.IssueType.Name}' issues are not supported. Task '{task.Key}'");
 
             return null;
         }
 
         if (task.Fields.Parent != null && task.Fields.Parent.Fields.IssueType.Name != "Epic")
         {
-            _logger.LogError("Only Epic issues as parent supported for now");
+            _logger.LogError($"Only Epic issues as parent supported for now. Task '{task.Key}'");
 
             return null;
         }
 
         if (task.Fields.IssueLinks is { Length: > 0 })
         {
-            _logger.LogError("Issue links are not supported for now");
+            _logger.LogError($"Issue links are not supported for now. Task '{task.Key}'");
 
             return null;
         }
 
         if (task.Fields.Subtasks is { Length: > 0 })
         {
-            _logger.LogError("Subtasks are not supported for now");
-
-            return null;
-        }
-
-        if (task.Fields.Sprint is { Length: > 0 })
-        {
-            _logger.LogError("Sprints are not supported for now");
-
-            return null;
-        }
-
-        if (task.Fields.Estimations != null)
-        {
-            _logger.LogError("Estimations are not supported for now");
+            _logger.LogError($"Subtasks are not supported for now. Task '{task.Key}'");
 
             return null;
         }
@@ -168,8 +202,10 @@ public class MigrationService
         }
 
         var title = task.Fields.Summary;
-        var body = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(task, _jiraService.JiraBaseAddress);
+        var body = Body(task);
         var assigneeIds = AssigneeIds(task);
+        var iterationId = ExtractIterationId(task);
+        var storyPoints = task.Fields.Estimations;
 
         ProjectItem projectItem = HasMergedReferencedPullRequests(task)
             ? await CreateIssueAndAddToProject(task, title, body, assigneeIds)
@@ -180,6 +216,16 @@ public class MigrationService
         if (task.Fields.Status.Name == "Done" && projectItem is IssueProjectItem issueProjectItem)
         {
             await _githubService.CloseIssue(issueProjectItem.IssueId);
+        }
+
+        if (iterationId != null)
+        {
+            await _githubService.SetIteration(Constants.GitHubProjectId, projectItem.Id, iterationId);
+        }
+
+        if (storyPoints != null)
+        {
+            await _githubService.SetStoryPoints(Constants.GitHubProjectId, projectItem.Id, storyPoints.Value);
         }
 
         if (task.Fields.Parent != null)

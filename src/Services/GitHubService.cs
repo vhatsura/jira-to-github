@@ -81,6 +81,50 @@ mutation ($input: AddAssigneesToAssignableInput!) {
         _ = await assignIssueResponse.ParseGraphQlResponse<AddAssigneesToAssignableResponse>();
     }
 
+    public async Task SetStoryPoints(string projectId, string itemId, float value)
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/graphql",
+            new
+            {
+                query = UpdateProjectV2ItemFieldValueMutation,
+                variables = new
+                {
+                    input = new
+                    {
+                        fieldId = Constants.GitHubStoryPointsFieldId,
+                        itemId,
+                        projectId,
+                        value = new { number = value }
+                    }
+                }
+            });
+
+        _ = await response.ParseGraphQlResponse<UpdateProjectV2ItemFieldValueResponse>();
+    }
+
+    public async Task SetIteration(string projectId, string itemId, string iterationId)
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/graphql",
+            new
+            {
+                query = UpdateProjectV2ItemFieldValueMutation,
+                variables = new
+                {
+                    input = new
+                    {
+                        fieldId = Constants.GitHubIterationFieldId,
+                        itemId,
+                        projectId,
+                        value = new { iterationId }
+                    }
+                }
+            });
+
+        _ = await response.ParseGraphQlResponse<UpdateProjectV2ItemFieldValueResponse>();
+    }
+
     public async Task SetIssueEpic(string projectId, string itemId, string value)
     {
         var setEpicResponse = await _client.PostAsJsonAsync(

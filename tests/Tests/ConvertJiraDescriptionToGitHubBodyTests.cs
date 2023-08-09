@@ -1,3 +1,4 @@
+using FluentAssertions;
 using JiraToGitHubMigration;
 using JiraToGitHubMigration.Models.Jira;
 using Snapshooter.Xunit;
@@ -16,7 +17,7 @@ public class ConvertJiraDescriptionToGitHubBodyTests
             {
                 Summary = "The task title",
                 Status = new JiraStatus { Name = "Backlog" },
-                IssueType = new JiraIssueType { Name = "Task" },
+                IssueType = new JiraIssueType { Name = "Backlog", },
                 Description = description
             }
         };
@@ -28,10 +29,10 @@ public class ConvertJiraDescriptionToGitHubBodyTests
         // Arrange + Act
         var content =
             JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
-                CreateJiraTask(null), "https://example.atlassian.net");
+                CreateJiraTask(null));
 
         // Assert
-        content.MatchSnapshot();
+        content.Should().BeEmpty();
     }
 
     [Fact]
@@ -57,7 +58,7 @@ public class ConvertJiraDescriptionToGitHubBodyTests
 
         // Act
         var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
-            CreateJiraTask(description), "https://example.atlassian.net");
+            CreateJiraTask(description));
 
         // Assert
         content.MatchSnapshot();
@@ -87,14 +88,14 @@ public class ConvertJiraDescriptionToGitHubBodyTests
 
         // Act
         var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
-            CreateJiraTask(description), "https://example.atlassian.net");
+            CreateJiraTask(description));
 
         // Assert
         content.MatchSnapshot();
     }
 
     [Fact]
-    public void BulletList()
+    public void SimpleBulletList()
     {
         // Arrange
         var description = new JiraDescription
@@ -134,7 +135,71 @@ public class ConvertJiraDescriptionToGitHubBodyTests
 
         // Act
         var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
-            CreateJiraTask(description), "https://example.atlassian.net");
+            CreateJiraTask(description));
+
+        // Assert
+        content.MatchSnapshot();
+    }
+
+    [Fact]
+    public void ComplexBulletList()
+    {
+        // Arrange
+        var description = new JiraDescription
+        {
+            Version = 1,
+            Type = "doc",
+            Content = new[]
+            {
+                new JiraDescriptionContent
+                {
+                    Type = "bulletList",
+                    Content = new[]
+                    {
+                        new JiraDescriptionContent
+                        {
+                            Type = "listItem",
+                            Content = new[]
+                            {
+                                new JiraDescriptionContent
+                                {
+                                    Type = "paragraph",
+                                    Content = new[]
+                                    {
+                                        new JiraDescriptionContent
+                                        {
+                                            Type = "text", Text = "Option 1"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        new JiraDescriptionContent
+                        {
+                            Type = "listItem",
+                            Content = new[]
+                            {
+                                new JiraDescriptionContent
+                                {
+                                    Type = "paragraph",
+                                    Content = new[]
+                                    {
+                                        new JiraDescriptionContent
+                                        {
+                                            Type = "text", Text = "Option 2"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        // Act
+        var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
+            CreateJiraTask(description));
 
         // Assert
         content.MatchSnapshot();
@@ -163,7 +228,110 @@ public class ConvertJiraDescriptionToGitHubBodyTests
 
         // Act
         var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
-            CreateJiraTask(description), "https://example.atlassian.net");
+            CreateJiraTask(description));
+
+        // Assert
+        content.MatchSnapshot();
+    }
+
+    [Fact]
+    public void SimpleCodeBlock()
+    {
+        // Arrange
+        var description = new JiraDescription
+        {
+            Version = 1,
+            Type = "doc",
+            Content = new[]
+            {
+                new JiraDescriptionContent
+                {
+                    Type = "codeBlock",
+                    Content = new[] { new JiraDescriptionContent { Type = "text", Text = "some code" } }
+                },
+            }
+        };
+
+        // Act
+        var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
+            CreateJiraTask(description));
+
+        // Assert
+        content.MatchSnapshot();
+    }
+
+    [Fact]
+    public void CodeBlockWithLanguage()
+    {
+        // Arrange
+        var description = new JiraDescription
+        {
+            Version = 1,
+            Type = "doc",
+            Content = new[]
+            {
+                new JiraDescriptionContent
+                {
+                    Type = "codeBlock",
+                    Attributes = new JiraDescriptionAttributes { Language = "text" },
+                    Content = new[] { new JiraDescriptionContent { Type = "text", Text = "some code" } }
+                },
+            }
+        };
+
+        // Act
+        var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
+            CreateJiraTask(description));
+
+        // Assert
+        content.MatchSnapshot();
+    }
+
+    [Fact]
+    public void Mention()
+    {
+        // Arrange
+        var description = new JiraDescription
+        {
+            Version = 1,
+            Type = "doc",
+            Content = new[]
+            {
+                new JiraDescriptionContent
+                {
+                    Type = "mention", Attributes = new JiraDescriptionAttributes { Text = "@John Doe" }
+                },
+            }
+        };
+
+        // Act
+        var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
+            CreateJiraTask(description));
+
+        // Assert
+        content.MatchSnapshot();
+    }
+
+    [Fact]
+    public void Emojii()
+    {
+        // Arrange
+        var description = new JiraDescription
+        {
+            Version = 1,
+            Type = "doc",
+            Content = new[]
+            {
+                new JiraDescriptionContent
+                {
+                    Type = "emoji", Attributes = new JiraDescriptionAttributes { Text = "😀" }
+                },
+            }
+        };
+
+        // Act
+        var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
+            CreateJiraTask(description));
 
         // Assert
         content.MatchSnapshot();

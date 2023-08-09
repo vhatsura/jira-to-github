@@ -1,5 +1,8 @@
+using System.Diagnostics;
+
 namespace JiraToGitHubMigration.Models.Jira;
 
+[DebuggerDisplay("{Key} - {Fields.Summary}")]
 public class JiraTask
 {
     public required string Id { get; set; }

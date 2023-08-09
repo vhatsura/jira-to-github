@@ -67,13 +67,34 @@ public static class JiraToMarkdownConverter
                     stringBuilder.AppendLine();
 
                     break;
+                case { Type: "mediaGroup" }:
                 case { Type: "mediaSingle" }:
                     throw new NotImplementedException();
-                case { Type: "codeBlock" }:
+                case { Type: "codeBlock", Content: not null }:
+
+                    stringBuilder.AppendLine($"```{content.Attributes?.Language ?? string.Empty}");
+                    BuildMarkdown(stringBuilder, content.Content);
+                    stringBuilder.AppendLine();
+                    stringBuilder.AppendLine("```");
+
+                    break;
+
+                case { Type: "table" }:
                     throw new NotImplementedException();
+                case { Type: "emoji", Attributes.Text: not null }:
+                case { Type: "mention", Attributes.Text: not null }:
+                    stringBuilder.Append(content.Attributes.Text);
+
+                    break;
                 case { Type: "emoji" }:
                     throw new NotImplementedException();
-                case { Type: "table" }:
+                case { Type: "mention" }:
+                    throw new NotImplementedException();
+                case { Type: "panel" }:
+                    throw new NotImplementedException();
+                case { Type: "blockquote" }:
+                    throw new NotImplementedException();
+                case { Type: "blockCard" }:
                     throw new NotImplementedException();
                 default:
                     Debugger.Break();
@@ -83,7 +104,7 @@ public static class JiraToMarkdownConverter
         }
     }
 
-    public static string ConvertJiraDescriptionToGitHubBody(JiraTask task, string jiraBaseAddress)
+    public static string ConvertJiraDescriptionToGitHubBody(JiraTask task)
     {
         var stringBuilder = new StringBuilder();
 
@@ -101,20 +122,11 @@ public static class JiraToMarkdownConverter
 
         if (stringBuilder.Length > 2)
         {
-            if (stringBuilder[^2] != '\n')
+            if (stringBuilder[^2] == '\n' && stringBuilder[^1] == '\n')
             {
-                stringBuilder.AppendLine();
-            }
-
-            if (stringBuilder[^2] != '\n')
-            {
-                stringBuilder.AppendLine();
+                stringBuilder.Remove(stringBuilder.Length - 1, 1);
             }
         }
-
-
-        stringBuilder.AppendLine(
-            $"> Originally reported issue in Jira [{task.Key}]({jiraBaseAddress}/browse/{task.Key})");
 
         return stringBuilder.ToString();
     }
