@@ -16,4 +16,12 @@ public class JiraIssueLink
     public JiraTask? InwardIssue { get; set; }
 
     public JiraTask? OutwardIssue { get; set; }
+
+    public override string ToString()
+    {
+        if (InwardIssue != null) return $"{Type.Inward} {InwardIssue}";
+        if (OutwardIssue != null) return $"{Type.Outward} {OutwardIssue}";
+
+        return $"{Type.Inward} / {Type.Outward}";
+    }
 }

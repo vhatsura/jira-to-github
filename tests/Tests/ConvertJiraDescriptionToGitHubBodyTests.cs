@@ -41,19 +41,7 @@ public class ConvertJiraDescriptionToGitHubBodyTests
         // Arrange
         var description = new JiraDescription
         {
-            Version = 1,
-            Type = "doc",
-            Content = new[]
-            {
-                new JiraDescriptionContent
-                {
-                    Type = "paragraph",
-                    Content = new[]
-                    {
-                        new JiraDescriptionContent { Type = "text", Text = "The task description" }
-                    }
-                }
-            }
+            Version = 1, Type = "doc", Content = new[] { JiraDescriptionContent.Paragraph("The task description") }
         };
 
         // Act
@@ -72,18 +60,7 @@ public class ConvertJiraDescriptionToGitHubBodyTests
         {
             Version = 1,
             Type = "doc",
-            Content = new[]
-            {
-                new JiraDescriptionContent
-                {
-                    Type = "heading",
-                    Attributes = new JiraDescriptionAttributes { Level = 3 },
-                    Content = new[]
-                    {
-                        new JiraDescriptionContent { Type = "text", Text = "The task description" }
-                    }
-                }
-            }
+            Content = new[] { JiraDescriptionContent.Heading("The task description", 3), }
         };
 
         // Act
@@ -109,25 +86,8 @@ public class ConvertJiraDescriptionToGitHubBodyTests
                     Type = "bulletList",
                     Content = new[]
                     {
-                        new JiraDescriptionContent
-                        {
-                            Type = "listItem",
-                            Content = new[]
-                            {
-                                new JiraDescriptionContent
-                                {
-                                    Type = "paragraph",
-                                    Content = new[]
-                                    {
-                                        new JiraDescriptionContent
-                                        {
-                                            Type = "text",
-                                            Text = "The task description"
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        JiraDescriptionContent.ListItem(
+                            JiraDescriptionContent.Paragraph("The task description")),
                     }
                 }
             }
@@ -156,42 +116,8 @@ public class ConvertJiraDescriptionToGitHubBodyTests
                     Type = "bulletList",
                     Content = new[]
                     {
-                        new JiraDescriptionContent
-                        {
-                            Type = "listItem",
-                            Content = new[]
-                            {
-                                new JiraDescriptionContent
-                                {
-                                    Type = "paragraph",
-                                    Content = new[]
-                                    {
-                                        new JiraDescriptionContent
-                                        {
-                                            Type = "text", Text = "Option 1"
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        new JiraDescriptionContent
-                        {
-                            Type = "listItem",
-                            Content = new[]
-                            {
-                                new JiraDescriptionContent
-                                {
-                                    Type = "paragraph",
-                                    Content = new[]
-                                    {
-                                        new JiraDescriptionContent
-                                        {
-                                            Type = "text", Text = "Option 2"
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        JiraDescriptionContent.ListItem(JiraDescriptionContent.Paragraph("Option 1")),
+                        JiraDescriptionContent.ListItem(JiraDescriptionContent.Paragraph("Option 2")),
                     }
                 }
             }
@@ -326,6 +252,123 @@ public class ConvertJiraDescriptionToGitHubBodyTests
                 {
                     Type = "emoji", Attributes = new JiraDescriptionAttributes { Text = "😀" }
                 },
+            }
+        };
+
+        // Act
+        var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
+            CreateJiraTask(description));
+
+        // Assert
+        content.MatchSnapshot();
+    }
+
+    [Fact]
+    public void SubList()
+    {
+        // Arrange
+        var description = new JiraDescription
+        {
+            Version = 1,
+            Type = "doc",
+            Content = new[]
+            {
+                JiraDescriptionContent.BulletList(
+                    JiraDescriptionContent.ListItem(
+                        JiraDescriptionContent.Paragraph("Option 1"),
+                        new JiraDescriptionContent
+                        {
+                            Type = "bulletList",
+                            Content = new[]
+                            {
+                                JiraDescriptionContent.ListItem(
+                                    JiraDescriptionContent.Paragraph("sub-option 1")),
+                                JiraDescriptionContent.ListItem(
+                                    JiraDescriptionContent.Paragraph("sub-option 2"))
+                            }
+                        }),
+                    JiraDescriptionContent.ListItem(JiraDescriptionContent.Paragraph("Option 2")))
+            }
+        };
+
+        // Act
+        var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
+            CreateJiraTask(description));
+
+        // Assert
+        content.MatchSnapshot();
+    }
+
+    [Fact]
+    public void ListHeadingListCase()
+    {
+        // Arrange
+        var description = new JiraDescription
+        {
+            Version = 1,
+            Type = "doc",
+            Content = new[]
+            {
+                JiraDescriptionContent.BulletList(
+                    JiraDescriptionContent.ListItem(JiraDescriptionContent.Paragraph("Option 1"))),
+                JiraDescriptionContent.Heading("Heading", 3),
+                JiraDescriptionContent.BulletList(
+                    JiraDescriptionContent.ListItem(JiraDescriptionContent.Paragraph("Option 1")),
+                    JiraDescriptionContent.ListItem(JiraDescriptionContent.Paragraph("Option 2")))
+            }
+        };
+
+        // Act
+        var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
+            CreateJiraTask(description));
+
+        // Assert
+        content.MatchSnapshot();
+    }
+
+    [Fact]
+    public void ParagraphHeadingList()
+    {
+        // Arrange
+        var description = new JiraDescription
+        {
+            Version = 1,
+            Type = "doc",
+            Content = new[]
+            {
+                JiraDescriptionContent.Paragraph("Some text"),
+                JiraDescriptionContent.Heading("Heading", 3),
+                JiraDescriptionContent.BulletList(
+                    JiraDescriptionContent.ListItem(JiraDescriptionContent.Paragraph("Option 1")),
+                    JiraDescriptionContent.ListItem(JiraDescriptionContent.Paragraph("Option 2")))
+            }
+        };
+
+        // Act
+        var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(
+            CreateJiraTask(description));
+
+        // Assert
+        content.MatchSnapshot();
+    }
+
+    [Fact]
+    public void ComplexParagraphHeadingList()
+    {
+        // Arrange
+        var description = new JiraDescription
+        {
+            Version = 1,
+            Type = "doc",
+            Content = new[]
+            {
+                JiraDescriptionContent.Paragraph(
+                    JiraDescriptionContent.TextContent("Some "), JiraDescriptionContent.TextContent("divided"),
+                    JiraDescriptionContent.TextContent(" text")),
+                JiraDescriptionContent.Heading("Heading", 3),
+                JiraDescriptionContent.BulletList(
+                    JiraDescriptionContent.ListItem(JiraDescriptionContent.Paragraph("Option 1")),
+                    JiraDescriptionContent.ListItem(JiraDescriptionContent.Paragraph("Option 2")))
             }
         };
 

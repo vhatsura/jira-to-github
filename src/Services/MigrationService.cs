@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.RegularExpressions;
 using JiraToGitHubMigration.Models.GitHub;
 using JiraToGitHubMigration.Models.Jira;
@@ -63,7 +64,7 @@ public class MigrationService
 
     private bool HasMergedReferencedPullRequests(JiraTask task)
     {
-        if (task.Fields.SourceProviderData == null || task.Fields.SourceProviderData == "{}")
+        if (task.Fields.SourceProviderData is null or "{}")
             return false;
 
         if (task.Fields.SourceProviderData.StartsWith("{build="))
@@ -91,6 +92,36 @@ public class MigrationService
             return false;
         }
 
+        if (task.Fields.SourceProviderData.StartsWith("{repository={count=1, dataType=repository}"))
+        {
+            return false;
+        }
+
+        Debugger.Break();
+
+        throw new NotImplementedException();
+    }
+
+    private (string Owner, string Repository) ChooseProperRepository(
+        HashSet<(string Owner, string Repository, string PullRequestNumber)> pullRequests)
+    {
+        var repositories = pullRequests.Select(x => (x.Owner, x.Repository)).ToHashSet();
+
+        if (repositories.Count == 1) return (repositories.First().Owner, repositories.First().Repository);
+
+        var relevantRepositories =
+            repositories.Where(x => !Constants.CommonRepositories.Contains(x.Repository)).ToHashSet();
+
+        if (relevantRepositories.Count == 1) return relevantRepositories.First();
+
+        foreach (var repository in Constants.RepositoryPriorities)
+        {
+            if (relevantRepositories.Contains(repository))
+            {
+                return repository;
+            }
+        }
+
         Debugger.Break();
 
         throw new NotImplementedException();
@@ -103,7 +134,7 @@ public class MigrationService
 
         HashSet<(string Owner, string Repository, string PRNumber)> set = new();
 
-        foreach (var pullRequest in pullRequestLinks.Where(p => p.Status == "MERGED"))
+        foreach (var pullRequest in pullRequestLinks.Where(p => p.Status is "MERGED" or "OPEN"))
         {
             var pattern = @"https://github\.com/(?<owner>.+?)/(?<repository>.+?)/pull/(?<prNumber>\d+)";
 
@@ -115,14 +146,9 @@ public class MigrationService
                     match.Groups["prNumber"].Value));
         }
 
-        if (set.Count != 1)
-        {
-            _logger.LogError($"There are a few pull requests for '{task.Key}' task");
+        var repository = ChooseProperRepository(set);
 
-            throw new NotImplementedException();
-        }
-
-        var repositoryId = await _githubService.RepositoryId(set.First().Repository, set.First().Owner);
+        var repositoryId = await _githubService.RepositoryId(repository.Repository, repository.Owner);
 
         var createdIssue = await _githubService.CreateIssue(body, repositoryId, title, assigneeIds);
 
@@ -156,17 +182,69 @@ public class MigrationService
         return null;
     }
 
+    private string LinkToIssue(JiraTask task) =>
+        $"[{task.Key}]({_jiraService.JiraBaseAddress.TrimEnd('/')}/browse/{task.Key})";
+
     private string Body(JiraTask task)
     {
         var content = JiraToMarkdownConverter.ConvertJiraDescriptionToGitHubBody(task);
 
-        return content + "\n\n" +
-               $"> Originally reported issue in Jira [{task.Key}]({_jiraService.JiraBaseAddress}/browse/{task.Key})";
+        if (IssueLinksShouldBeConverted(task))
+        {
+            var issueLinksBuilder = new StringBuilder();
+
+            issueLinksBuilder.AppendLine("> Issue Links");
+
+            foreach (var issueLink in task.Fields.IssueLinks!)
+            {
+                if (issueLink.InwardIssue != null)
+                {
+                    issueLinksBuilder.AppendLine($"> - {issueLink.Type.Inward} {LinkToIssue(issueLink.InwardIssue)}");
+                }
+                else if (issueLink.OutwardIssue != null)
+                {
+                    issueLinksBuilder.AppendLine($"> - {issueLink.Type.Outward} {LinkToIssue(issueLink.OutwardIssue)}");
+                }
+                else
+                {
+                    Debugger.Break();
+
+                    throw new NotImplementedException();
+                }
+            }
+
+            issueLinksBuilder.AppendLine();
+
+            return content + "\n\n" + issueLinksBuilder + $"> Originally reported issue in Jira {LinkToIssue(task)}";
+        }
+
+        return content + "\n\n" + $"> Originally reported issue in Jira {LinkToIssue(task)}";
+    }
+
+    private static readonly HashSet<string> SupportedIssueTypes = new() { "Task", "Bug", "Technical debt" };
+
+    private bool IssueLinksShouldBeConverted(JiraTask task)
+    {
+        if (task.Fields.IssueLinks == null || task.Fields.IssueLinks.Length == 0) return false;
+        if (task.Fields.Status.Name == "Done") return false;
+
+        foreach (var issueLink in task.Fields.IssueLinks)
+        {
+            var doesBlockCompletedTask = (issueLink.Type.Inward == "is blocked by" &&
+                                          issueLink.InwardIssue is { Fields.Status.Name: "Done" }) ||
+                                         (issueLink.Type.Outward == "blocks" &&
+                                          issueLink.OutwardIssue is { Fields.Status.Name: "Done" });
+
+            if (issueLink.Type.Inward != "is cloned by" && issueLink.Type.Inward != "split from" &&
+                !doesBlockCompletedTask) return true;
+        }
+
+        return false;
     }
 
     private async Task<string?> CreateGitHubIssue(JiraTask task)
     {
-        if (task.Fields.IssueType.Name != "Task" && task.Fields.IssueType.Name != "Bug")
+        if (!SupportedIssueTypes.Contains(task.Fields.IssueType.Name))
         {
             _logger.LogError($"'{task.Fields.IssueType.Name}' issues are not supported. Task '{task.Key}'");
 
@@ -176,13 +254,6 @@ public class MigrationService
         if (task.Fields.Parent != null && task.Fields.Parent.Fields.IssueType.Name != "Epic")
         {
             _logger.LogError($"Only Epic issues as parent supported for now. Task '{task.Key}'");
-
-            return null;
-        }
-
-        if (task.Fields.IssueLinks is { Length: > 0 })
-        {
-            _logger.LogError($"Issue links are not supported for now. Task '{task.Key}'");
 
             return null;
         }

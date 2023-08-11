@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json.Serialization;
 
 namespace JiraToGitHubMigration.Models.Jira;
@@ -37,6 +38,7 @@ public class JiraDescriptionMark
     public JiraDescriptionAttributes? Attributes { get; set; }
 }
 
+[DebuggerDisplay("{Type}")]
 public class JiraDescriptionContent
 {
     [JsonPropertyName("type")]
@@ -53,6 +55,41 @@ public class JiraDescriptionContent
 
     [JsonPropertyName("attrs")]
     public JiraDescriptionAttributes? Attributes { get; set; }
+
+    public static JiraDescriptionContent TextContent(string text)
+    {
+        return new JiraDescriptionContent { Type = "text", Text = text };
+    }
+
+    public static JiraDescriptionContent Paragraph(string text)
+    {
+        return new JiraDescriptionContent { Type = "paragraph", Content = new[] { TextContent(text) } };
+    }
+
+    public static JiraDescriptionContent Paragraph(params JiraDescriptionContent[] content)
+    {
+        return new JiraDescriptionContent { Type = "paragraph", Content = content };
+    }
+
+    public static JiraDescriptionContent Heading(string text, int level)
+    {
+        return new JiraDescriptionContent
+        {
+            Type = "heading",
+            Attributes = new JiraDescriptionAttributes { Level = level },
+            Content = new[] { new JiraDescriptionContent { Type = "text", Text = text } }
+        };
+    }
+
+    public static JiraDescriptionContent ListItem(params JiraDescriptionContent[] content)
+    {
+        return new JiraDescriptionContent { Type = "listItem", Content = content };
+    }
+
+    public static JiraDescriptionContent BulletList(params JiraDescriptionContent[] content)
+    {
+        return new JiraDescriptionContent { Type = "bulletList", Content = content };
+    }
 }
 
 public class JiraDescription
